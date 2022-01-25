@@ -1,0 +1,88 @@
+<script src="https://d3js.org/d3.v7.js"></script>
+<!--<script src="https://cdn.jsdelivr.net/npm/d3-hierarchy@3"></script>-->
+
+<script>
+    let data;
+
+    async function loadData() {
+        const [regions, states] = await Promise.all([
+            d3.csv("census-regions.csv"),
+            d3.tsv("population.tsv").then(states => states.map((d, i) => i === 0 ? null : ({
+                name: d[""],
+                values: d
+            })).filter(state => state !== null))
+        ]);
+
+        const regionByState = new Map(regions.map(d => [d.State, d.Region]));
+        const divisionByState = new Map(regions.map(d => [d.State, d.Division]));
+
+        return d3.group(states, d => regionByState.get(d.name), d => divisionByState.get(d.name));
+    }
+
+    function semanticVis(document, year) {
+        const hierarchy = d3.hierarchy(data)
+            .sum(d => +d?.values[year]?.replace(/,/g, "") || 0);
+
+        const vis = d3.select(document).select("population-chart");
+
+
+        vis.select('current-year').attr('value', year);
+
+        const addGroups = (parentNode, children, level) => {
+            const nodeNames = {1: "region-data", 2: "subregion-data"};
+            const nodeName = nodeNames[level];
+            parentNode
+                .selectAll(nodeName)
+                .data(children)
+                .join(nodeName)
+                .attr('name', d => d.data[0])
+                .attr('population', d => d.value)
+                .each(function(group) {
+                    group.depth < 2 ?
+                        addGroups(d3.select(this), group.children, group.depth + 1)
+                        : addPoints(d3.select(this), group.children);
+                });
+        };
+
+        const addPoints = (parentNode, children) => {
+            parentNode
+                .selectAll("state-data")
+                .data(children)
+                .join("state-data")
+                .attr('name', d => d.data.name)
+                .attr('population', d => {
+                    const num = d.data.values[year].replace(/,/g, "");
+                    return isNaN(num) ? 0 : num;
+                });
+        }
+        addGroups(vis, hierarchy.children, 1);
+    }
+
+    async function init() {
+        data = await loadData();
+
+        setTimeout(() => drawAllVis(1790), 100);
+    }
+
+    function drawAllVis(year) {
+        document.getElementById('year-indicator').value = year;
+
+        //semanticVis(document, year);
+        semanticVis(document.getElementById('dom-iframe').contentDocument, year);
+        semanticVis(document.getElementById('treemap-iframe').contentDocument, year);
+    }
+
+    init();
+</script>
+
+<input type="range" min="1790" max="1990" value="1790" step="10" class="slider" oninput="drawAllVis(this.value);" onchange="" />
+<input disabled id="year-indicator" value="" style="width: 40px; pointer-events: none" /><br />
+
+
+
+<population-chart>
+    <current-year value="-1"></current-year>
+</population-chart>
+
+<iframe src="dom-output.html" id="dom-iframe" width="700" height="700"></iframe>
+<iframe src="treemap.html" id="treemap-iframe" width="700" height="700"></iframe>

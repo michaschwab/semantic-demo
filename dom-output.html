@@ -1,0 +1,75 @@
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.4.0/styles/default.min.css" />
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.4.0/highlight.min.js"></script>
+
+<style>population-chart { font-size: 12px;}</style>
+
+<h3>Raw DOM</h3>
+
+<population-chart>
+    <current-year value="-1"></current-year>
+</population-chart>
+
+<script>
+    function nSpaces(n) {
+        return (new Array(n)).fill(' ').reduce((a, b) => a + b, '');
+    }
+
+    const htmlspecialchars = (str) =>
+        str.replace(/[&<>"']/g, char => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            "\"": "&quot;",
+            "'": "&#39;"
+        })[char]);
+
+    class DomPrint extends HTMLElement {
+        shadow = this.attachShadow({mode: 'open'});
+        initialized = false;
+
+        render() {
+            const childCode = (element, level = 1) => {
+                /*if(level > 2) {
+                    return '';
+                }*/
+
+                let code = '';
+                for(const child of element.children) {
+                    code += '\r\n' + nSpaces(level * 4) + child.outerHTML.replace(child.innerHTML, childCode(child, level + 1));
+                }
+                if(element.children.length) {
+                    code += '\r\n' + nSpaces((level - 1) * 4);
+                }
+                return code;
+            };
+            let code = htmlspecialchars(this.outerHTML.replace(this.innerHTML, childCode(this)));
+
+            if(!this.initialized) {
+                this.initialized = true;
+                this.shadow.innerHTML = `
+                    <link rel="stylesheet"
+                        href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.4.0/styles/default.min.css" />
+                    <link href="https://unpkg.com/prismjs@v1.x/themes/prism.css" rel="stylesheet" />
+
+                    <pre><code class="language-xml">${code}</code></pre>`;
+            } else {
+                this.shadow.querySelector('.language-xml').innerHTML = code;
+            }
+            hljs.highlightElement(this.shadow.querySelector('pre'));
+        }
+
+        connectedCallback() {
+            const observer = new MutationObserver((mutations, observer) => {
+                this.render();
+            });
+
+            observer.observe(this, {
+                subtree: true,
+                attributes: true,
+                childList: true
+            });
+        }
+    }
+
+    window.customElements.define('population-chart', DomPrint);
+</script>

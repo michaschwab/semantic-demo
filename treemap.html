@@ -1,0 +1,68 @@
+<script src="https://d3js.org/d3.v7.js"></script>
+
+<h3>Treemap</h3>
+
+<population-chart>
+    <current-year value="-1"></current-year>
+</population-chart>
+
+<script>
+
+    class PopulationTreemap extends HTMLElement {
+        shadow = this.attachShadow({mode: 'open'});
+        initialized = false;
+
+        render() {
+            this.shadow.innerHTML = `<svg width="700" height="700"></svg>`;
+            setTimeout(() => this.render2(), 100);
+        }
+
+        render2() {
+            const vis = d3.select(this.shadow.querySelector('svg'));
+
+            const treemap = d3.treemap()
+                .tile(d3.treemapResquarify)
+                .size([700, 700])
+                .padding(d => d.height === 1 ? 1 : 0)
+                .round(true);
+
+            const data = {children: Array.from(this.children).filter(node => node.hasAttribute('population')).map(node => ({
+                name: node.getAttribute('name'),
+                population: node.getAttribute('population')
+            }))};
+
+            const root = d3.hierarchy(data).sum(d =>
+                d.population ? d.population : 0
+            );
+
+            treemap(root);
+
+            console.log(root.leaves());
+
+            vis
+                .selectAll('rect')
+                .data(root.leaves())
+                .join('rect')
+                .attr('x', d => d.x0)
+                .attr('y', d => d.y0)
+                .attr('width', d => d.x1 - d.x0)
+                .attr('height', d => d.y1 - d.y0)
+                .attr('fill', '#cccccc')
+
+        }
+
+        connectedCallback() {
+            const observer = new MutationObserver((mutations, observer) => {
+                this.render();
+            });
+
+            observer.observe(this, {
+                subtree: true,
+                attributes: true,
+                childList: true
+            });
+        }
+    }
+
+    window.customElements.define('population-chart', PopulationTreemap);
+</script>
